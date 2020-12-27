@@ -1,9 +1,8 @@
-grepcidr 2.991 - Filter IP addresses matching IPv4 and IPv6 CIDR specification
+grepcidr 3.0 - Filter IP addresses matching IPv4 and IPv6 CIDR specification
 Parts Copyright (C) 2004-2005  Jem E. Berkes <jberkes@pc-tools.net>
 	http://www.pc-tools.net/unix/grepcidr/
 
-Revised by John Levine <johnl@taugh.com> Dec 2013-Oct 2015, who makes
-no copyright claims to the modifications.
+Revised by John Levine <johnl@standcore.com> Dec 2013-Dec 2020
 
 PURPOSE
 -------
@@ -80,8 +79,8 @@ grepcidr 127.0.0.0/8,::1 iplog
 grepcidr "192.168.0.1-192.168.10.13" iplog
 	Searches for IPs matching indicated range in the iplog file
 
-script | grepcidr -ivf whitelist > blacklist
-	Create a blacklist, with whitelisted networks removed (inverse)
+script | grepcidr -ivf whitelist > blocklist
+	Create a blocklist, with whitelisted networks removed (inverse)
 
 grepcidr -if list1 list2
 	Cross-reference two lists, outputs IPs common to both lists
