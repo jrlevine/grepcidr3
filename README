@@ -27,7 +27,7 @@ COMMAND USAGE
 -------------
 Usage:
         grepcidr [-V] [-cCDvhais] PATTERN [FILE ...]
-        grepcidr [-V]  [-V] [-cCDvhais] [-e PATTERN | -f FILE] [FILE ...]
+        grepcidr [-V] [-cCDvhais] [-e PATTERN | -f FILE] [FILE ...]
 
 -V	Show software version
 -a	Anchor matches to beginning of line, otherwise match anywhere
