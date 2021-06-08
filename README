@@ -1,4 +1,4 @@
-grepcidr 3.0 - Filter IP addresses matching IPv4 and IPv6 CIDR specification
+xgrepcidr 3.0 - Filter IP addresses matching IPv4 and IPv6 CIDR specification
 Parts Copyright (C) 2004-2005  Jem E. Berkes <jberkes@pc-tools.net>
 	http://www.pc-tools.net/unix/grepcidr/
 
@@ -60,7 +60,7 @@ Grepcidr uses a state machine to look for IP addresses in the input,
 and a binary search to match addresses against patterns.  Its speed is
 roughly O(N) in the size of the input, and O(log N) in the number of
 patterns.  A prepass over the patterns merges adjacent and overlapping
-patterns so there is negligle speed penalty for matching, e.g.
+patterns so there is negligible speed penalty for matching, e.g.
 1.2.2.0/24 and 1.2.3.0/24 rather than 1.2.2.0/23.
 
 Input files are mapped into memory if possible, so the state machine
