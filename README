@@ -47,13 +47,13 @@ lines starting with # are ignored, as are comments following white space
 after a pattern.  Use -i to ignore invalid pattern lines.
 
 Each pattern, whether on the command line or inside a file, may be:
-CIDR format	a.b.c.d/xx or aa:bb::cc::dd/xx
+CIDR format	a.b.c.d/xx or aa:bb::cc:dd/xx
 IP range	a.b.c.d-e.f.g.h
-Single IP	a.b.c.d or aa:bb:cc::dd
+Single IP	a.b.c.d or aa:bb:cc:dd
 
 IPv6 addresses can be written in any format including embedded IPv4.
 The zero address :: is accepted as a pattern but does not match in
-files.  (Use regular grep if that's what you're looking for,)  It does
+files.  (Use regular grep if that's what you're looking for.)  It does
 not accept IPv6 ranges, since few people use them.
 
 Grepcidr uses a state machine to look for IP addresses in the input,
