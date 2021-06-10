@@ -1,9 +1,12 @@
 #
-# Makefile for grepcidr
+# Makefile for grepcidr 3.x
 #
 
 # Set to where you'd like grepcidr installed
-INSTALLDIR=/usr/local/bin
+INSTALLDIR=/usr/local
+INSTALLDIR_BIN=${INSTALLDIR}/bin
+INSTALLDIR_MAN=${INSTALLDIR}/man/man1
+#INSTALLDIR_MAN=${INSTALLDIR}/share/man/man1
 
 # Set to your favorite C compiler and flags
 # with GCC, -O3 makes a lot of difference
@@ -21,8 +24,9 @@ all:	grepcidr
 grepcidr:	grepcidr.c
 	$(CC) $(CFLAGS) -o grepcidr grepcidr.c
 
-install:	grepcidr
-	cp grepcidr $(INSTALLDIR)
+install:	all  grepcidr.1
+	install grepcidr $(INSTALLDIR_BIN)
+	install -m 0644 grepcidr.1 $(INSTALLDIR_MAN)
 
 clean:
 	rm -f grepcidr

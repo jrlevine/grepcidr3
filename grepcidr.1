@@ -43,7 +43,7 @@ Parse CIDR ranges in input and match if a search term covers any of the range.
 .SH "USAGE NOTES" 
 .PP 
 PATTERN specified on the command line may contain multiple patterns 
-separated by whitespace or commas. For long lists of network patterns, 
+separated by white space or commas. For long lists of network patterns, 
 use \fB-f\fP to load a file where each line contains one pattern. Comment 
 lines starting with # are ignored.
 In a file, each pattern can be followed by a space and comments.
@@ -69,7 +69,7 @@ Complaints about misaligned CIDRs can be suppressed with \fB-s\fP.
 .PP 
 In version 2.9 \fBgrepcidr\fR normally searches for IP addresses anywhere 
 on the input line.
-It uses a reasonable but ad-hoc parser to look for the begining of an address.
+It uses a reasonable but ad-hoc parser to look for the beginning of an address.
 This can cause unexpected results in some cases, e.g. ab:c12.34.56.78 will not
 match as an IPv4 address because ab:c12 looks like the beginning of an IPv6
 address.
@@ -80,14 +80,14 @@ Even though :: is a valid way to write a zero IPv6 address, grepcidr won't match
 (If that's what you want, use regular grep.)
 It will match 0:: or ::0.0.0.0 or 0::0 or or any other form.
 .PP
-Normallly grepcidr will match every string that looks like
+Normally grepcidr will match every string that looks like
 an IPv4 address, so in 1.2.3.4.5.6.7.8 it will match
 both 1.2.3.4 and 5.6.7.8.
 The \fB-q\fP option ignores addresses preceded or followed by a dot,
 which avoids false matches in some contexts.
 .PP 
 Use the \fB-a\fP option to look for addresses only at the
-start of the line, optionally preceded by whitespace.
+start of the line, optionally preceded by white space.
 This type of search is stricter, but not significantly faster.
 .PP 
 Note that \fB-v\fP outputs only lines that do contain IP addresses, but do not match
