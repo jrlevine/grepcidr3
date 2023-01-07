@@ -1400,6 +1400,8 @@ netmatch(const struct netspec ip4)
 	int maxx = npatterns-1;
 	int tryx = 0;
 
+	if(!npatterns) return 0;	/* nothing to match */
+
 # if DEBUG
 	{	/* DEBUG */
 
@@ -1444,6 +1446,8 @@ netmatch6(const struct netspec6 ip6)
 	int minx = 0;
 	int maxx = n6patterns-1;
 	int tryx = 0;
+
+	if(!n6patterns) return 0;	/* nothing to match */
 
 # if DEBUG
 	{	/* DEBUG */
