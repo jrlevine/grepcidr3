@@ -3,6 +3,7 @@
 #
 
 # Set to where you'd like grepcidr installed
+INSTALL=install
 INSTALLDIR=/usr/local
 INSTALLDIR_BIN=${INSTALLDIR}/bin
 INSTALLDIR_MAN=${INSTALLDIR}/man/man1
@@ -22,11 +23,11 @@ DIR := $(shell basename ${PWD})
 all:	grepcidr
 
 grepcidr:	grepcidr.c
-	$(CC) $(CFLAGS) -o grepcidr grepcidr.c
+	$(CC) $(CFLAGS) $(RPM_OPT_FLAGS) $(RPM_LD_FLAGS) -o grepcidr grepcidr.c
 
 install:	all  grepcidr.1
-	install grepcidr $(INSTALLDIR_BIN)
-	install -m 0644 grepcidr.1 $(INSTALLDIR_MAN)
+	$(INSTALL) grepcidr $(DESTDIR)$(INSTALLDIR_BIN)
+	$(INSTALL) -m 0644 grepcidr.1 $(DESTDIR)$(INSTALLDIR_MAN)
 
 clean:
 	rm -f grepcidr
