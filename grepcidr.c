@@ -939,7 +939,7 @@ static void scan_block(char *bp, size_t blen, const char *fn)
 		S_V6SZ,		/* v6 cidr prefix */
 		S_SCNL,		/* scan for new line */
 		S_SCNLP		/* scan for new line and print line */
-	} state;
+	} scan_state;
 	enum sscan snext = anchor?S_SCNL:S_SC;	/* state after not an IP */
 
 	char *p = bp;		/* current character */
@@ -957,11 +957,11 @@ static void scan_block(char *bp, size_t blen, const char *fn)
 	unsigned int chunk = 0;	/* current 16 bit chunk */
 	int seenone = 0;	/* seen an address on this line, for -v */
 
-	state = S_BEG;
+	scan_state = S_BEG;
 	for(p = bp; p < plim;) {
 		int ch = *p++;
 
-		switch(state) {
+		switch(scan_state) {
 			case S_BEG:	/* beginning of line */
 				lp = p-1;
 				seenone = 0;
@@ -973,21 +973,21 @@ static void scan_block(char *bp, size_t blen, const char *fn)
 			case S_SC:		/* normal scanning */
 				if(isdigit(ch)) {	/* start a potential IP of either type */
 					ip4 = 0;
-					state = S_IP1;
+					scan_state = S_IP1;
 					nhi = nlo = 0;
 					octet = chunk = ch-'0';
 					continue;
 				} else if(isxdigit(ch)) {
-					state = S_HCH;
+					scan_state = S_HCH;
 					nhi = nlo = 0;
 					octet = -1;	/* hex, not v4 */
 					chunk = xtod(ch);
 					continue;
 				} else if(ch == ':') {
-					state = S_IC1;
+					scan_state = S_IC1;
 					continue;
 				} else if(quick && ch == '.') {
-					state = S_NSC;
+					scan_state = S_NSC;
 					continue;
 				}
 				break;
@@ -995,19 +995,19 @@ static void scan_block(char *bp, size_t blen, const char *fn)
 			case S_NSC:		/* ignore crud after a dot */
 				if(isdigit(ch) || ch == '.')
 					continue;
-				state = S_SC;
+				scan_state = S_SC;
 				break;
 
 			case S_IC1:		/* initial colon must be two colons and lo part */
 				if(ch == ':') {
 					nhi = nlo = 0;
-					state = S_HC2;
+					scan_state = S_HC2;
 					continue;
 				}
 				/* rescan as normal in case it was
 				 * a random colon before an IP
 				 */
-				state = S_SC;
+				scan_state = S_SC;
 				p--;
 				continue;
 
@@ -1028,14 +1028,14 @@ static void scan_block(char *bp, size_t blen, const char *fn)
 					/* is it embedded? */
 					if(nhi == 12) {
 						ahi.a[nhi++] = octet;
-						state = S_EIP1D;
+						scan_state = S_EIP1D;
 						continue;
 					}
 					/* v6 address was too short,
 					 * must be a regular v4 address
 					 */
 					ip4 = octet;
-					state = S_IP1D;	/* corresponding dot state */
+					scan_state = S_IP1D;	/* corresponding dot state */
 					continue;
 				}
 				if(chunk > 0xffff)
@@ -1045,7 +1045,7 @@ static void scan_block(char *bp, size_t blen, const char *fn)
 					ahi.a[nhi++] = chunk & 255;
 				}
 				if(ch == ':') {
-					state = S_HC1;
+					scan_state = S_HC1;
 					continue;
 				}
 				/* was it full address? */
@@ -1053,14 +1053,14 @@ static void scan_block(char *bp, size_t blen, const char *fn)
 					if(!n6patterns) break;	/* no v6 patterns */
 					if(cidrsearch && ch == '/') {
 						size = 0;
-						state = S_V6SZ;
+						scan_state = S_V6SZ;
 						continue;
 					}
 					seenone = 1;
 					range6.min = range6.max = ahi;
 					if(!netmatch6(range6))
 						break; /* didn't match */
-					state = S_SCNLP;
+					scan_state = S_SCNLP;
 					goto scnlp;	/* in case it was a \n */
 				}
 				break;	/* partial address, not an IP */
@@ -1072,11 +1072,11 @@ static void scan_block(char *bp, size_t blen, const char *fn)
 						octet = ch-'0';
 					else
 						octet = -1;
-					state = S_HCH;
+					scan_state = S_HCH;
 					continue;
 				}
 				if(ch == ':') {	/* two colons, might be end or lo part can follow */
-					state = S_HC2;
+					scan_state = S_HC2;
 					continue;
 				}
 				break;	/* not an IP */
@@ -1088,7 +1088,7 @@ static void scan_block(char *bp, size_t blen, const char *fn)
 						octet = chunk;
 					else
 						octet = -1;
-					state = S_LCH;
+					scan_state = S_LCH;
 					continue;
 				}
 
@@ -1102,7 +1102,7 @@ static void scan_block(char *bp, size_t blen, const char *fn)
 				memset(ahi.a+nhi, 0, 16-nhi);	/* zero low bytes */
 				if(cidrsearch && ch == '/') {
 					size = 0;
-					state = S_V6SZ;
+					scan_state = S_V6SZ;
 					continue;
 				} else
 					size = -1;
@@ -1111,7 +1111,7 @@ static void scan_block(char *bp, size_t blen, const char *fn)
 				range6.min = range6.max = ahi;
 				if(!netmatch6(range6))
 					break; /* didn't match */
-				state = S_SCNLP;
+				scan_state = S_SCNLP;
 				goto scnlp;	/* in case it was a \n */
 
 			case S_V6SZ:
@@ -1129,7 +1129,7 @@ static void scan_block(char *bp, size_t blen, const char *fn)
 				applymask6(ahi, size, &range6);
 				if(!netmatch6(range6))
 					break; /* didn't match */
-				state = S_SCNLP;
+				scan_state = S_SCNLP;
 				goto scnlp;	/* in case it was a \n */
 
 			case S_LCH:		/* low chunk */
@@ -1150,7 +1150,7 @@ static void scan_block(char *bp, size_t blen, const char *fn)
 							memcpy(ahi.a+12-nlo, alo.a, nlo);
 						nhi = 12;
 						ahi.a[nhi++] = octet;
-						state = S_EIP1D;
+						scan_state = S_EIP1D;
 						continue;
 					}
 				}
@@ -1164,7 +1164,7 @@ static void scan_block(char *bp, size_t blen, const char *fn)
 					alo.a[nlo++] = chunk & 255;
 				}
 				if(ch == ':') {
-					state = S_LC1;
+					scan_state = S_LC1;
 					continue;
 				}
 				/* end of lo part, check it */
@@ -1173,7 +1173,7 @@ static void scan_block(char *bp, size_t blen, const char *fn)
 				memset(ahi.a+nhi, 0, 16-(nhi+nlo));	/* combine hi and lo parts */
 				memcpy(ahi.a+(16-nlo), alo.a, nlo);
 				if(cidrsearch && ch == '/') {
-					state = S_V6SZ;
+					scan_state = S_V6SZ;
 					size = 0;
 					continue;
 				}
@@ -1181,7 +1181,7 @@ static void scan_block(char *bp, size_t blen, const char *fn)
 				range6.min = range6.max = ahi;
 				if(!netmatch6(range6))
 					break; /* didn't match */
-				state = S_SCNLP;
+				scan_state = S_SCNLP;
 				goto scnlp;	/* in case it was a \n */
 
 			case S_LC1:	/* seen a colon after a low chunk */
@@ -1191,7 +1191,7 @@ static void scan_block(char *bp, size_t blen, const char *fn)
 						octet = chunk;
 					else
 						octet = -1;
-					state = S_LCH;
+					scan_state = S_LCH;
 					continue;
 				}
 				break;	/* trailing junk, not an IP */
@@ -1200,7 +1200,7 @@ static void scan_block(char *bp, size_t blen, const char *fn)
 				if(isxdigit(ch)) {
 					chunk = (chunk<<4) + xtod(ch);
 					if(!isdigit(ch)) {
-						state = S_HCH;	/* doesn't look like a v4 address */
+						scan_state = S_HCH;	/* doesn't look like a v4 address */
 						octet = -1;
 						continue;
 					}
@@ -1209,7 +1209,7 @@ static void scan_block(char *bp, size_t blen, const char *fn)
 					 * which must be chunk 0 */
 					ahi.a[nhi++] = chunk >> 8;	/* big-endian for memcmp() */
 					ahi.a[nhi++] = chunk & 255;
-					state = S_HC1;
+					scan_state = S_HC1;
 					continue;
 				}
 				/* fall through */
@@ -1225,7 +1225,7 @@ static void scan_block(char *bp, size_t blen, const char *fn)
 					}
 					ip4 <<= 8;
 					ip4 += octet;
-					state++;	/* corresponding dot state */
+					scan_state++;	/* corresponding dot state */
 					continue;
 				}
 				/* otherwise, wasn't a full IP */
@@ -1239,7 +1239,7 @@ static void scan_block(char *bp, size_t blen, const char *fn)
 			case S_EIP3D:
 				if(isdigit(ch)) {
 					octet = ch-'0';
-					state++;	/* next digit state */
+					scan_state++;	/* next digit state */
 					continue;
 				}
 				break;	/* wasn't an IP */
@@ -1251,7 +1251,7 @@ static void scan_block(char *bp, size_t blen, const char *fn)
 				}
 				/* OK, we have the IP */
 				if(quick && ch == '.') {	/* seen crud, skip it */
-					state = S_NSC;
+					scan_state = S_NSC;
 					continue;
 				}
 				if(octet > 255) { /* not a real address */
@@ -1261,7 +1261,7 @@ static void scan_block(char *bp, size_t blen, const char *fn)
 				ip4 += octet;
 				if(!npatterns) break; /* no v4 patterns */
 				if(cidrsearch && ch == '/') {
-					state = S_V4SZ;
+					scan_state = S_V4SZ;
 					size = 0;
 					continue;
 				}
@@ -1269,7 +1269,7 @@ static void scan_block(char *bp, size_t blen, const char *fn)
 				range4.min = range4.max = ip4;
 				if(!netmatch(range4))
 					break; /* didn't match */
-				state = S_SCNLP;
+				scan_state = S_SCNLP;
 				goto scnlp;	/* in case it was a \n */
 
                         case S_V4SZ:    /* cidr size */
@@ -1289,7 +1289,7 @@ static void scan_block(char *bp, size_t blen, const char *fn)
 				}
 				if(!netmatch(range4))
 					break; /* didn't match */
-				state = S_SCNLP;
+				scan_state = S_SCNLP;
 				goto scnlp;	/* in case it was a \n */
 				
 			case S_EIP2:	/* in embedded octet */
@@ -1303,7 +1303,7 @@ static void scan_block(char *bp, size_t blen, const char *fn)
 						break;
 					}
 					ahi.a[nhi++] = octet;
-					state++;	/* corresponding dot state */
+					scan_state++;	/* corresponding dot state */
 					continue;
 				}
 				/* otherwise, wasn't a full IP */
@@ -1316,7 +1316,7 @@ static void scan_block(char *bp, size_t blen, const char *fn)
 				}
 				/* OK, we have the IP */
 				if(quick && ch == '.') {	/* seen crud, skip it */
-					state = S_NSC;
+					scan_state = S_NSC;
 					continue;
 				}
 				if(octet > 255) { /* not a real address */
@@ -1328,7 +1328,7 @@ static void scan_block(char *bp, size_t blen, const char *fn)
 				if(n6patterns) {
 					range6.min = range6.max = ahi;
 					if(netmatch6(range6)) {	/* try a v6 pattern */
-						state = S_SCNLP;
+						scan_state = S_SCNLP;
 						goto scnlp;	/* in case it was a \n */
 					}
 				}
@@ -1336,7 +1336,7 @@ static void scan_block(char *bp, size_t blen, const char *fn)
 				 * that */
 				ip4 = (ahi.a[12]<<24)|(ahi.a[13]<<16)|(ahi.a[14]<<8)|ahi.a[15];
 				if(cidrsearch && ch == '/') {
-					state = S_V4SZ;
+					scan_state = S_V4SZ;
 					size = 0;
 					continue;
 				}
@@ -1344,7 +1344,7 @@ static void scan_block(char *bp, size_t blen, const char *fn)
 				if(!npatterns || !netmatch(range4))
 					break; /* didn't match */
 
-				state = S_SCNLP;
+				scan_state = S_SCNLP;
 				/* fall through, in case it was a \n */
 
 scnlp:
@@ -1362,7 +1362,7 @@ scnlp:
 							fwrite(lp, 1, p-lp, stdout);
 						}
 					}
-					state = S_BEG;
+					scan_state = S_BEG;
 				}
 				continue;
 
@@ -1382,9 +1382,9 @@ scnlp:
 					fwrite(lp, 1, p-lp, stdout);
 				}
 			}
-			state = S_BEG;
+			scan_state = S_BEG;
 		} else
-			state = snext;
+			scan_state = snext;
 		continue;
 
 	}
