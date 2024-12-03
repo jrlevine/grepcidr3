@@ -69,6 +69,37 @@ static int cidrsearch = 0;			/* parse and match CIDR in haystack */
 static int didrsearch = 0;			/* match CIDR if overlaps with haystack */
 static int quick = 0;				/* quick match, ignore v4 with dots before or after */
 
+/* Global scanning state for scan_block */
+enum sscan {
+	S_BEG = 0,	/* beginning of line */
+	S_SC,		/* scan for IP */
+	S_NSC,		/* saw a dot, scan for non-digit */
+	S_IP1,		/* first octet or maybe first v6 chunk*/
+	S_IP1D,		/* dot after first octet */
+	S_IP2,		/* second octet */
+	S_IP2D,		/* dot after second octet */
+	S_IP3,		/* third octet */
+	S_IP3D,		/* dot after third octet */
+	S_IP4,		/* fourth octet */
+	S_V4SZ,		/* v4 cidr prefix */
+	S_HCH,		/* in a hi v6 chunk */
+	S_HC1,		/* hi, seen one colon */
+	S_HC2,		/* hi, seen two colons */
+	S_LCH,		/* in a low chunk */
+	S_LC1,		/* seen a low colon */
+	S_IC1,		/* seen initial colon */
+	S_EIP1D,	/* dot after first octet in embedded v4 */
+	S_EIP2,		/* second octet */
+	S_EIP2D,	/* dot after second octet */
+	S_EIP3,		/* third octet */
+	S_EIP3D,	/* dot after third octet */
+	S_EIP4,		/* fourth octet */
+	S_V6SZ,		/* v6 cidr prefix */
+	S_SCNL,		/* scan for new line */
+	S_SCNLP,	/* scan for new line and print line */
+	S_NEXTF,	/* abort scan as though end of file */
+} scan_state;
+
 static void scan_block(char *bp, size_t blen, const char *fn);
 static void scan_read(FILE *f, const char *fn);
 static int applymask6(const v6addr ahi, int size, struct netspec6 *spec);
@@ -874,6 +905,7 @@ int main(int argc, char* argv[])
 				continue;
 			}
 
+			scan_state = S_BEG;
 			scan_block(fmap, flen, fn);
 			munmap(fmap, flen);
 			fclose(f);
@@ -894,8 +926,10 @@ static void scan_read(FILE *f, const char *fn)
 {
 	ssize_t len;
 
-	while((len = getline(&linep, &linesize, f)) > 0)
-	      scan_block(linep, len, fn);
+	scan_state = S_BEG;
+	while((scan_state != S_NEXTF) && ((len = getline(&linep, &linesize, f)) > 0)) {
+		scan_block(linep, len, fn);
+	}
 }
 
 static int netmatch(const struct netspec ip4);
@@ -912,34 +946,6 @@ static int netmatch6(const struct netspec6 ip6);
  */
 static void scan_block(char *bp, size_t blen, const char *fn)
 {
-	enum sscan {
-		S_BEG = 0,	/* beginning of line */
-		S_SC,		/* scan for IP */
-		S_NSC,		/* saw a dot, scan for non-digit */
-		S_IP1,		/* first octet or maybe first v6 chunk*/
-		S_IP1D,		/* dot after first octet */
-		S_IP2,		/* second octet */
-		S_IP2D,		/* dot after second octet */
-		S_IP3,		/* third octet */
-		S_IP3D,		/* dot after third octet */
-		S_IP4,		/* fourth octet */
-		S_V4SZ,		/* v4 cidr prefix */
-		S_HCH,		/* in a hi v6 chunk */
-		S_HC1,		/* hi, seen one colon */
-		S_HC2,		/* hi, seen two colons */
-		S_LCH,		/* in a low chunk */
-		S_LC1,		/* seen a low colon */
-		S_IC1,		/* seen initial colon */
-		S_EIP1D,	/* dot after first octet in embedded v4 */
-		S_EIP2,		/* second octet */
-		S_EIP2D,	/* dot after second octet */
-		S_EIP3,		/* third octet */
-		S_EIP3D,	/* dot after third octet */
-		S_EIP4,		/* fourth octet */
-		S_V6SZ,		/* v6 cidr prefix */
-		S_SCNL,		/* scan for new line */
-		S_SCNLP		/* scan for new line and print line */
-	} scan_state;
 	enum sscan snext = anchor?S_SCNL:S_SC;	/* state after not an IP */
 
 	char *p = bp;		/* current character */
