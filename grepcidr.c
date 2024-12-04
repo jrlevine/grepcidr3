@@ -62,7 +62,9 @@ static unsigned int counting = 0;		/* when non-zero, counts matches */
 static int invert = 0;				/* flag for inverted mode */
 static int anchor = 0;				/* anchor matches at beginning of line */
 static int nonames = 0;				/* don't show filenames */
+static int onlynames = 0;			/* only show filenames */
 static int nmatch = 0;				/* count of matches for exit code */
+static int fmatch = 0;				/* count of matches for current file */
 static int igbadpat = 0;			/* ignore bad patterns */
 static int sloppy = 0;				/* don't complain about sloppy CIDR */
 static int cidrsearch = 0;			/* parse and match CIDR in haystack */
@@ -635,7 +637,7 @@ int netsort6(const void* a, const void* b)
 
 int main(int argc, char* argv[])
 {
-	static char shortopts[] = "acCDe:f:hiqsvV";
+	static char shortopts[] = "acCDe:f:hilqsvV";
 	char* pat_filename = NULL;		/* filename containing patterns */
 	char* pat_strings = NULL;		/* pattern strings on command line */
 	int foundopt;
@@ -672,6 +674,10 @@ int main(int argc, char* argv[])
 
 			case 'i':
 				igbadpat = 1;
+				break;
+
+			case 'l':
+				onlynames = 1;
 				break;
 
 			case 'q':
@@ -881,7 +887,8 @@ int main(int argc, char* argv[])
 			char *fmap;
 			size_t flen;
 			struct stat statbuf;
-		
+			fmatch = 0;	
+
 			if(!f) {
 				perror(fn);
 				return EXIT_ERROR;
@@ -1362,13 +1369,16 @@ scnlp:
 				if(ch == '\n') {
 					if(!invert) {
 						nmatch++;
+						fmatch++;
 						if(!counting) {
-							if(fn && !nonames)
-								printf("%s:", fn);
-							fwrite(lp, 1, p-lp, stdout);
+							if(onlynames) printf("%s\n", (fn == NULL) ? "(standard input)" : fn);
+							else {
+								if(!nonames) printf("%s:", (fn == NULL) ? "(standard input)" : fn);
+								fwrite(lp, 1, p-lp, stdout);
+							}
 						}
 					}
-					scan_state = S_BEG;
+					scan_state = (onlynames && (fmatch > 0)) ? S_NEXTF : S_BEG;
 				}
 				continue;
 
@@ -1377,18 +1387,26 @@ scnlp:
 				while(ch != '\n' && p < plim)
 					ch = *p++;
 				break;
+
+			case S_NEXTF:
+				/* skip to the end of the buffer fast */
+				p = plim;
+				break;
 		}
 		/* default action if it wasn't an IP */
 		if(ch == '\n') {
 			if(invert && seenone) {	/* -v prints or counts lines with IPs that didn't match */
 				nmatch++;
+				fmatch++;
 				if(!counting) {
-					if(fn && !nonames)
-						printf("%s:", fn);
-					fwrite(lp, 1, p-lp, stdout);
+					if(onlynames) printf("%s\n", (fn == NULL) ? "(standard input)" : fn);
+					else {
+						if(!nonames) printf("%s:", (fn == NULL) ? "(standard input)" : fn);
+						fwrite(lp, 1, p-lp, stdout);
+					}
 				}
 			}
-			scan_state = S_BEG;
+			scan_state = (onlynames && (fmatch > 0)) ? S_NEXTF : S_BEG;
 		} else
 			scan_state = snext;
 		continue;
