@@ -876,11 +876,11 @@ int main(int argc, char* argv[])
 		}
 	}
 # endif /* DEBUG */
-	if (optind >= argc) {
+	if(optind+1 >= argc) nonames = 1;	/* if only one file (or none), don't print filename on match lines */
+	if(optind >= argc) {
+		fmatch = 0;	
 		scan_read(stdin, NULL);
 	} else {
-		if(optind+1 >= argc) nonames = 1;	/* just one file, no name */
-
 		while(optind < argc) {
 			char *fn = argv[optind++];
 			FILE *f = fopen(fn, "r");
