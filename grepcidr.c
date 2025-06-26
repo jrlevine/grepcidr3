@@ -21,7 +21,7 @@
 #define EXIT_NOMATCH	1
 #define EXIT_ERROR	2
 
-#define TXT_VERSION	"grepcidr 3.0\nParts copyright (C) 2004, 2005  Jem E. Berkes <jberkes@pc-tools.net>\n"
+#define TXT_VERSION	"grepcidr 3.01\nParts copyright (C) 2004, 2005  Jem E. Berkes <jberkes@pc-tools.net>\n"
 #define TXT_USAGE	"Usage:\n" \
 			"\tgrepcidr [-V] [-cCDvhais] PATTERN [FILE...]\n" \
 			"\tgrepcidr [-V] [-cCDvhais] [-e PATTERN | -f FILE] [FILE...]\n"
@@ -538,7 +538,7 @@ int net_parse6(const char* line, struct netspec6* spec)
 	if (!applymask6(ahi, size, spec) && !sloppy) {
 		p = strchr(line, '\n');
 		if(p) *p = 0;	/* just a string */
-			fprintf(stderr, "Bad cidr range: %s\n", line);
+		fprintf(stderr, "Bad cidr range: %s\n", line);
 	}
 	return 1;
 }
@@ -873,6 +873,8 @@ int main(int argc, char* argv[])
 				fclose(f);
 				continue;
 			}
+			/* hint that it'll be read sequentially */
+			madvise(fmap, flen, MADV_SEQUENTIAL);
 
 			scan_block(fmap, flen, fn);
 			munmap(fmap, flen);
