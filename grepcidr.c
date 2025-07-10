@@ -1464,12 +1464,17 @@ netmatch6(const struct netspec6 ip6)
 	}
 # endif
 	/* make sure it's in range */
-	if(v6cmp(ip6.max, array6[0].min) < 0 || v6cmp(ip6.min, array6[maxx].max) > 0) return 0;
+	if(v6cmp(ip6.max, array6[0].min) < 0 || v6cmp(ip6.min, array6[maxx].max) > 0) {
+#if DEBUG
+		printf("out of range\n");
+#endif
+		return 0;
+	}
 
 	while(minx <= maxx) {
 		tryx = (minx+maxx)/2;
 
-		if(v6cmp(ip6.min, array6[tryx].min)<0) {
+		if(v6cmp(ip6.max, array6[tryx].min)<0) {
 			maxx = tryx-1;
 			continue;
 		}
