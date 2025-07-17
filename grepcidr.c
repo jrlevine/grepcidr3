@@ -23,8 +23,8 @@
 
 #define TXT_VERSION	"grepcidr 3.02\nParts copyright (C) 2004, 2005  Jem E. Berkes <jberkes@pc-tools.net>\n"
 #define TXT_USAGE	"Usage:\n" \
-			"\tgrepcidr [-V] [-cCDvhais] PATTERN [FILE...]\n" \
-			"\tgrepcidr [-V] [-cCDvhais] [-e PATTERN | -f FILE] [FILE...]\n"
+			"\tgrepcidr [-V] [-cCDvhails] PATTERN [FILE...]\n" \
+			"\tgrepcidr [-V] [-cCDvhails] [-e PATTERN | -f FILE] [FILE...]\n"
 #define MAXFIELD	512
 #define TOKEN_SEPS	"\t,\r\n"	/* so user can specify multiple patterns on command line */
 #define INIT_NETWORKS	8192
@@ -62,12 +62,45 @@ static unsigned int counting = 0;		/* when non-zero, counts matches */
 static int invert = 0;				/* flag for inverted mode */
 static int anchor = 0;				/* anchor matches at beginning of line */
 static int nonames = 0;				/* don't show filenames */
+static int onlynames = 0;			/* only show filenames */
 static int nmatch = 0;				/* count of matches for exit code */
+static int fmatch = 0;				/* count of matches for current file */
 static int igbadpat = 0;			/* ignore bad patterns */
 static int sloppy = 0;				/* don't complain about sloppy CIDR */
 static int cidrsearch = 0;			/* parse and match CIDR in haystack */
 static int didrsearch = 0;			/* match CIDR if overlaps with haystack */
 static int quick = 0;				/* quick match, ignore v4 with dots before or after */
+
+/* Global scanning state for scan_block */
+enum sscan {
+	S_BEG = 0,	/* beginning of line */
+	S_SC,		/* scan for IP */
+	S_NSC,		/* saw a dot, scan for non-digit */
+	S_IP1,		/* first octet or maybe first v6 chunk*/
+	S_IP1D,		/* dot after first octet */
+	S_IP2,		/* second octet */
+	S_IP2D,		/* dot after second octet */
+	S_IP3,		/* third octet */
+	S_IP3D,		/* dot after third octet */
+	S_IP4,		/* fourth octet */
+	S_V4SZ,		/* v4 cidr prefix */
+	S_HCH,		/* in a hi v6 chunk */
+	S_HC1,		/* hi, seen one colon */
+	S_HC2,		/* hi, seen two colons */
+	S_LCH,		/* in a low chunk */
+	S_LC1,		/* seen a low colon */
+	S_IC1,		/* seen initial colon */
+	S_EIP1D,	/* dot after first octet in embedded v4 */
+	S_EIP2,		/* second octet */
+	S_EIP2D,	/* dot after second octet */
+	S_EIP3,		/* third octet */
+	S_EIP3D,	/* dot after third octet */
+	S_EIP4,		/* fourth octet */
+	S_V6SZ,		/* v6 cidr prefix */
+	S_SCNL,		/* scan for new line */
+	S_SCNLP,	/* scan for new line and print line */
+	S_NEXTF,	/* abort scan as though end of file */
+} scan_state;
 
 static void scan_block(char *bp, size_t blen, const char *fn);
 static void scan_read(FILE *f, const char *fn);
@@ -604,7 +637,7 @@ int netsort6(const void* a, const void* b)
 
 int main(int argc, char* argv[])
 {
-	static char shortopts[] = "acCDe:f:hiqsvV";
+	static char shortopts[] = "acCDe:f:hilqsvV";
 	char* pat_filename = NULL;		/* filename containing patterns */
 	char* pat_strings = NULL;		/* pattern strings on command line */
 	int foundopt;
@@ -641,6 +674,10 @@ int main(int argc, char* argv[])
 
 			case 'i':
 				igbadpat = 1;
+				break;
+
+			case 'l':
+				onlynames = 1;
 				break;
 
 			case 'q':
@@ -839,18 +876,19 @@ int main(int argc, char* argv[])
 		}
 	}
 # endif /* DEBUG */
-	if (optind >= argc) {
+	if(optind+1 >= argc) nonames = 1;	/* if only one file (or none), don't print filename on match lines */
+	if(optind >= argc) {
+		fmatch = 0;	
 		scan_read(stdin, NULL);
 	} else {
-		if(optind+1 >= argc) nonames = 1;	/* just one file, no name */
-
 		while(optind < argc) {
 			char *fn = argv[optind++];
 			FILE *f = fopen(fn, "r");
 			char *fmap;
 			size_t flen;
 			struct stat statbuf;
-		
+			fmatch = 0;	
+
 			if(!f) {
 				perror(fn);
 				return EXIT_ERROR;
@@ -876,6 +914,7 @@ int main(int argc, char* argv[])
 			/* hint that it'll be read sequentially */
 			madvise(fmap, flen, MADV_SEQUENTIAL);
 
+			scan_state = S_BEG;
 			scan_block(fmap, flen, fn);
 			munmap(fmap, flen);
 			fclose(f);
@@ -896,8 +935,10 @@ static void scan_read(FILE *f, const char *fn)
 {
 	ssize_t len;
 
-	while((len = getline(&linep, &linesize, f)) > 0)
-	      scan_block(linep, len, fn);
+	scan_state = S_BEG;
+	while((scan_state != S_NEXTF) && ((len = getline(&linep, &linesize, f)) > 0)) {
+		scan_block(linep, len, fn);
+	}
 }
 
 static int netmatch(const struct netspec ip4);
@@ -914,34 +955,6 @@ static int netmatch6(const struct netspec6 ip6);
  */
 static void scan_block(char *bp, size_t blen, const char *fn)
 {
-	enum sscan {
-		S_BEG = 0,	/* beginning of line */
-		S_SC,		/* scan for IP */
-		S_NSC,		/* saw a dot, scan for non-digit */
-		S_IP1,		/* first octet or maybe first v6 chunk*/
-		S_IP1D,		/* dot after first octet */
-		S_IP2,		/* second octet */
-		S_IP2D,		/* dot after second octet */
-		S_IP3,		/* third octet */
-		S_IP3D,		/* dot after third octet */
-		S_IP4,		/* fourth octet */
-		S_V4SZ,		/* v4 cidr prefix */
-		S_HCH,		/* in a hi v6 chunk */
-		S_HC1,		/* hi, seen one colon */
-		S_HC2,		/* hi, seen two colons */
-		S_LCH,		/* in a low chunk */
-		S_LC1,		/* seen a low colon */
-		S_IC1,		/* seen initial colon */
-		S_EIP1D,	/* dot after first octet in embedded v4 */
-		S_EIP2,		/* second octet */
-		S_EIP2D,	/* dot after second octet */
-		S_EIP3,		/* third octet */
-		S_EIP3D,	/* dot after third octet */
-		S_EIP4,		/* fourth octet */
-		S_V6SZ,		/* v6 cidr prefix */
-		S_SCNL,		/* scan for new line */
-		S_SCNLP		/* scan for new line and print line */
-	} state;
 	enum sscan snext = anchor?S_SCNL:S_SC;	/* state after not an IP */
 
 	char *p = bp;		/* current character */
@@ -959,11 +972,11 @@ static void scan_block(char *bp, size_t blen, const char *fn)
 	unsigned int chunk = 0;	/* current 16 bit chunk */
 	int seenone = 0;	/* seen an address on this line, for -v */
 
-	state = S_BEG;
+	scan_state = S_BEG;
 	for(p = bp; p < plim;) {
 		int ch = *p++;
 
-		switch(state) {
+		switch(scan_state) {
 			case S_BEG:	/* beginning of line */
 				lp = p-1;
 				seenone = 0;
@@ -975,21 +988,21 @@ static void scan_block(char *bp, size_t blen, const char *fn)
 			case S_SC:		/* normal scanning */
 				if(isdigit(ch)) {	/* start a potential IP of either type */
 					ip4 = 0;
-					state = S_IP1;
+					scan_state = S_IP1;
 					nhi = nlo = 0;
 					octet = chunk = ch-'0';
 					continue;
 				} else if(isxdigit(ch)) {
-					state = S_HCH;
+					scan_state = S_HCH;
 					nhi = nlo = 0;
 					octet = -1;	/* hex, not v4 */
 					chunk = xtod(ch);
 					continue;
 				} else if(ch == ':') {
-					state = S_IC1;
+					scan_state = S_IC1;
 					continue;
 				} else if(quick && ch == '.') {
-					state = S_NSC;
+					scan_state = S_NSC;
 					continue;
 				}
 				break;
@@ -997,19 +1010,19 @@ static void scan_block(char *bp, size_t blen, const char *fn)
 			case S_NSC:		/* ignore crud after a dot */
 				if(isdigit(ch) || ch == '.')
 					continue;
-				state = S_SC;
+				scan_state = S_SC;
 				break;
 
 			case S_IC1:		/* initial colon must be two colons and lo part */
 				if(ch == ':') {
 					nhi = nlo = 0;
-					state = S_HC2;
+					scan_state = S_HC2;
 					continue;
 				}
 				/* rescan as normal in case it was
 				 * a random colon before an IP
 				 */
-				state = S_SC;
+				scan_state = S_SC;
 				p--;
 				continue;
 
@@ -1030,14 +1043,14 @@ static void scan_block(char *bp, size_t blen, const char *fn)
 					/* is it embedded? */
 					if(nhi == 12) {
 						ahi.a[nhi++] = octet;
-						state = S_EIP1D;
+						scan_state = S_EIP1D;
 						continue;
 					}
 					/* v6 address was too short,
 					 * must be a regular v4 address
 					 */
 					ip4 = octet;
-					state = S_IP1D;	/* corresponding dot state */
+					scan_state = S_IP1D;	/* corresponding dot state */
 					continue;
 				}
 				if(chunk > 0xffff)
@@ -1047,7 +1060,7 @@ static void scan_block(char *bp, size_t blen, const char *fn)
 					ahi.a[nhi++] = chunk & 255;
 				}
 				if(ch == ':') {
-					state = S_HC1;
+					scan_state = S_HC1;
 					continue;
 				}
 				/* was it full address? */
@@ -1055,14 +1068,14 @@ static void scan_block(char *bp, size_t blen, const char *fn)
 					if(!n6patterns) break;	/* no v6 patterns */
 					if(cidrsearch && ch == '/') {
 						size = 0;
-						state = S_V6SZ;
+						scan_state = S_V6SZ;
 						continue;
 					}
 					seenone = 1;
 					range6.min = range6.max = ahi;
 					if(!netmatch6(range6))
 						break; /* didn't match */
-					state = S_SCNLP;
+					scan_state = S_SCNLP;
 					goto scnlp;	/* in case it was a \n */
 				}
 				break;	/* partial address, not an IP */
@@ -1074,11 +1087,11 @@ static void scan_block(char *bp, size_t blen, const char *fn)
 						octet = ch-'0';
 					else
 						octet = -1;
-					state = S_HCH;
+					scan_state = S_HCH;
 					continue;
 				}
 				if(ch == ':') {	/* two colons, might be end or lo part can follow */
-					state = S_HC2;
+					scan_state = S_HC2;
 					continue;
 				}
 				break;	/* not an IP */
@@ -1090,7 +1103,7 @@ static void scan_block(char *bp, size_t blen, const char *fn)
 						octet = chunk;
 					else
 						octet = -1;
-					state = S_LCH;
+					scan_state = S_LCH;
 					continue;
 				}
 
@@ -1104,7 +1117,7 @@ static void scan_block(char *bp, size_t blen, const char *fn)
 				memset(ahi.a+nhi, 0, 16-nhi);	/* zero low bytes */
 				if(cidrsearch && ch == '/') {
 					size = 0;
-					state = S_V6SZ;
+					scan_state = S_V6SZ;
 					continue;
 				} else
 					size = -1;
@@ -1113,7 +1126,7 @@ static void scan_block(char *bp, size_t blen, const char *fn)
 				range6.min = range6.max = ahi;
 				if(!netmatch6(range6))
 					break; /* didn't match */
-				state = S_SCNLP;
+				scan_state = S_SCNLP;
 				goto scnlp;	/* in case it was a \n */
 
 			case S_V6SZ:
@@ -1131,7 +1144,7 @@ static void scan_block(char *bp, size_t blen, const char *fn)
 				applymask6(ahi, size, &range6);
 				if(!netmatch6(range6))
 					break; /* didn't match */
-				state = S_SCNLP;
+				scan_state = S_SCNLP;
 				goto scnlp;	/* in case it was a \n */
 
 			case S_LCH:		/* low chunk */
@@ -1152,7 +1165,7 @@ static void scan_block(char *bp, size_t blen, const char *fn)
 							memcpy(ahi.a+12-nlo, alo.a, nlo);
 						nhi = 12;
 						ahi.a[nhi++] = octet;
-						state = S_EIP1D;
+						scan_state = S_EIP1D;
 						continue;
 					}
 				}
@@ -1166,7 +1179,7 @@ static void scan_block(char *bp, size_t blen, const char *fn)
 					alo.a[nlo++] = chunk & 255;
 				}
 				if(ch == ':') {
-					state = S_LC1;
+					scan_state = S_LC1;
 					continue;
 				}
 				/* end of lo part, check it */
@@ -1175,7 +1188,7 @@ static void scan_block(char *bp, size_t blen, const char *fn)
 				memset(ahi.a+nhi, 0, 16-(nhi+nlo));	/* combine hi and lo parts */
 				memcpy(ahi.a+(16-nlo), alo.a, nlo);
 				if(cidrsearch && ch == '/') {
-					state = S_V6SZ;
+					scan_state = S_V6SZ;
 					size = 0;
 					continue;
 				}
@@ -1183,7 +1196,7 @@ static void scan_block(char *bp, size_t blen, const char *fn)
 				range6.min = range6.max = ahi;
 				if(!netmatch6(range6))
 					break; /* didn't match */
-				state = S_SCNLP;
+				scan_state = S_SCNLP;
 				goto scnlp;	/* in case it was a \n */
 
 			case S_LC1:	/* seen a colon after a low chunk */
@@ -1193,7 +1206,7 @@ static void scan_block(char *bp, size_t blen, const char *fn)
 						octet = chunk;
 					else
 						octet = -1;
-					state = S_LCH;
+					scan_state = S_LCH;
 					continue;
 				}
 				break;	/* trailing junk, not an IP */
@@ -1202,7 +1215,7 @@ static void scan_block(char *bp, size_t blen, const char *fn)
 				if(isxdigit(ch)) {
 					chunk = (chunk<<4) + xtod(ch);
 					if(!isdigit(ch)) {
-						state = S_HCH;	/* doesn't look like a v4 address */
+						scan_state = S_HCH;	/* doesn't look like a v4 address */
 						octet = -1;
 						continue;
 					}
@@ -1211,7 +1224,7 @@ static void scan_block(char *bp, size_t blen, const char *fn)
 					 * which must be chunk 0 */
 					ahi.a[nhi++] = chunk >> 8;	/* big-endian for memcmp() */
 					ahi.a[nhi++] = chunk & 255;
-					state = S_HC1;
+					scan_state = S_HC1;
 					continue;
 				}
 				/* fall through */
@@ -1227,7 +1240,7 @@ static void scan_block(char *bp, size_t blen, const char *fn)
 					}
 					ip4 <<= 8;
 					ip4 += octet;
-					state++;	/* corresponding dot state */
+					scan_state++;	/* corresponding dot state */
 					continue;
 				}
 				/* otherwise, wasn't a full IP */
@@ -1241,7 +1254,7 @@ static void scan_block(char *bp, size_t blen, const char *fn)
 			case S_EIP3D:
 				if(isdigit(ch)) {
 					octet = ch-'0';
-					state++;	/* next digit state */
+					scan_state++;	/* next digit state */
 					continue;
 				}
 				break;	/* wasn't an IP */
@@ -1253,7 +1266,7 @@ static void scan_block(char *bp, size_t blen, const char *fn)
 				}
 				/* OK, we have the IP */
 				if(quick && ch == '.') {	/* seen crud, skip it */
-					state = S_NSC;
+					scan_state = S_NSC;
 					continue;
 				}
 				if(octet > 255) { /* not a real address */
@@ -1263,7 +1276,7 @@ static void scan_block(char *bp, size_t blen, const char *fn)
 				ip4 += octet;
 				if(!npatterns) break; /* no v4 patterns */
 				if(cidrsearch && ch == '/') {
-					state = S_V4SZ;
+					scan_state = S_V4SZ;
 					size = 0;
 					continue;
 				}
@@ -1271,7 +1284,7 @@ static void scan_block(char *bp, size_t blen, const char *fn)
 				range4.min = range4.max = ip4;
 				if(!netmatch(range4))
 					break; /* didn't match */
-				state = S_SCNLP;
+				scan_state = S_SCNLP;
 				goto scnlp;	/* in case it was a \n */
 
                         case S_V4SZ:    /* cidr size */
@@ -1291,7 +1304,7 @@ static void scan_block(char *bp, size_t blen, const char *fn)
 				}
 				if(!netmatch(range4))
 					break; /* didn't match */
-				state = S_SCNLP;
+				scan_state = S_SCNLP;
 				goto scnlp;	/* in case it was a \n */
 				
 			case S_EIP2:	/* in embedded octet */
@@ -1305,7 +1318,7 @@ static void scan_block(char *bp, size_t blen, const char *fn)
 						break;
 					}
 					ahi.a[nhi++] = octet;
-					state++;	/* corresponding dot state */
+					scan_state++;	/* corresponding dot state */
 					continue;
 				}
 				/* otherwise, wasn't a full IP */
@@ -1318,7 +1331,7 @@ static void scan_block(char *bp, size_t blen, const char *fn)
 				}
 				/* OK, we have the IP */
 				if(quick && ch == '.') {	/* seen crud, skip it */
-					state = S_NSC;
+					scan_state = S_NSC;
 					continue;
 				}
 				if(octet > 255) { /* not a real address */
@@ -1330,7 +1343,7 @@ static void scan_block(char *bp, size_t blen, const char *fn)
 				if(n6patterns) {
 					range6.min = range6.max = ahi;
 					if(netmatch6(range6)) {	/* try a v6 pattern */
-						state = S_SCNLP;
+						scan_state = S_SCNLP;
 						goto scnlp;	/* in case it was a \n */
 					}
 				}
@@ -1338,7 +1351,7 @@ static void scan_block(char *bp, size_t blen, const char *fn)
 				 * that */
 				ip4 = (ahi.a[12]<<24)|(ahi.a[13]<<16)|(ahi.a[14]<<8)|ahi.a[15];
 				if(cidrsearch && ch == '/') {
-					state = S_V4SZ;
+					scan_state = S_V4SZ;
 					size = 0;
 					continue;
 				}
@@ -1346,7 +1359,7 @@ static void scan_block(char *bp, size_t blen, const char *fn)
 				if(!npatterns || !netmatch(range4))
 					break; /* didn't match */
 
-				state = S_SCNLP;
+				scan_state = S_SCNLP;
 				/* fall through, in case it was a \n */
 
 scnlp:
@@ -1358,13 +1371,16 @@ scnlp:
 				if(ch == '\n') {
 					if(!invert) {
 						nmatch++;
+						fmatch++;
 						if(!counting) {
-							if(fn && !nonames)
-								printf("%s:", fn);
-							fwrite(lp, 1, p-lp, stdout);
+							if(onlynames) printf("%s\n", (fn == NULL) ? "(standard input)" : fn);
+							else {
+								if(!nonames) printf("%s:", (fn == NULL) ? "(standard input)" : fn);
+								fwrite(lp, 1, p-lp, stdout);
+							}
 						}
 					}
-					state = S_BEG;
+					scan_state = (onlynames && (fmatch > 0)) ? S_NEXTF : S_BEG;
 				}
 				continue;
 
@@ -1373,20 +1389,28 @@ scnlp:
 				while(ch != '\n' && p < plim)
 					ch = *p++;
 				break;
+
+			case S_NEXTF:
+				/* skip to the end of the buffer fast */
+				p = plim;
+				break;
 		}
 		/* default action if it wasn't an IP */
 		if(ch == '\n') {
 			if(invert && seenone) {	/* -v prints or counts lines with IPs that didn't match */
 				nmatch++;
+				fmatch++;
 				if(!counting) {
-					if(fn && !nonames)
-						printf("%s:", fn);
-					fwrite(lp, 1, p-lp, stdout);
+					if(onlynames) printf("%s\n", (fn == NULL) ? "(standard input)" : fn);
+					else {
+						if(!nonames) printf("%s:", (fn == NULL) ? "(standard input)" : fn);
+						fwrite(lp, 1, p-lp, stdout);
+					}
 				}
 			}
-			state = S_BEG;
+			scan_state = (onlynames && (fmatch > 0)) ? S_NEXTF : S_BEG;
 		} else
-			state = snext;
+			scan_state = snext;
 		continue;
 
 	}
