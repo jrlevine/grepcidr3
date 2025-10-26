@@ -101,3 +101,13 @@ lsof -i -nP | grep -oE '[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+' | grepcidr -o -f aws-cid
 	Identify AWS services from network connections. If patterns file contains
 	tab-delimited entries like "52.94.0.0/16<TAB>EC2", the service name is
 	included in the output.
+
+
+TESTING
+-------
+A comprehensive test suite is available in the tests/ directory.
+
+To run all tests:
+	make test
+
+See tests/README.md for detailed information on running tests and test organization.
