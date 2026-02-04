@@ -29,6 +29,18 @@ install:	all  grepcidr.1
 	$(INSTALL) grepcidr $(DESTDIR)$(INSTALLDIR_BIN)
 	$(INSTALL) -m 0644 grepcidr.1 $(DESTDIR)$(INSTALLDIR_MAN)
 
+test:	grepcidr
+	@echo "Running test suite..."
+	@for test in tests/test_*.sh; do \
+		if [ -x "$$test" ]; then \
+			echo ""; \
+			echo "Running $$test..."; \
+			$$test || exit 1; \
+		fi; \
+	done
+	@echo ""
+	@echo "All test suites passed!"
+
 clean:
 	rm -f grepcidr
 

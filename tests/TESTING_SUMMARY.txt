@@ -1,0 +1,49 @@
+=================================================================
+TESTING SUMMARY FOR -o OPTION IMPLEMENTATION
+=================================================================
+
+QUICK START
+-----------
+Run: make test
+Or:  ./tests/test_o_option.sh
+
+RESULTS
+-------
+✓ 33/33 tests passing (100%)
+
+TEST CATEGORIES
+---------------
+1. Basic IPv4 matching (3 tests)
+2. Narrowest match selection (4 tests)
+3. Batch processing (1 test)
+4. IPv6 support (4 tests)
+5. Mixed IPv4/IPv6 (1 test)
+6. Input methods (1 test)
+7. Backward compatibility (2 tests)
+8. Edge cases (4 tests)
+9. Complex scenarios (2 tests)
+10. Pattern ordering (1 test)
+11. Newline handling (1 test)
+12. Count mode compatibility (1 test)
+13. Real-world AWS use case (1 test)
+14. Performance with large pattern sets (1 test)
+15. IPv4-mapped IPv6 (1 test)
+16. AWS tab-delimited format (5 tests)
+
+KEY FEATURES TESTED
+-------------------
+✓ Pattern output instead of IP input
+✓ Narrowest match from overlapping ranges
+✓ IPv4 and IPv6 pattern matching
+✓ Pattern file with comments
+✓ stdin and file input methods
+✓ Count mode (-c) compatibility
+✓ Works correctly with 100+ patterns
+✓ Normal mode still works without -o
+✓ AWS tab-delimited format with service names
+
+DOCUMENTATION
+-------------
+TEST_O_OPTION.md         - Detailed testing guide
+AWS_TEST_VALIDATION.md   - AWS use case validation
+tests/README.md          - Test suite organization

@@ -1,0 +1,51 @@
+# Compiled binary
+grepcidr
+
+# Backup files
+*.bak
+*.bak[0-9]
+*.bak[0-9][0-9]
+*.backup
+*~
+
+# Test-generated files
+tests/test_*.txt
+tests/test_results.txt
+tests/*_output.txt
+
+# Temporary test directories
+/tmp/test_*
+aws_ranges.txt
+
+# Test output and temporary files
+*.out
+*.log
+classifications.txt
+ips.txt
+network.txt
+patterns.txt
+
+# Editor and IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+.*.swp
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Object files and libraries
+*.o
+*.a
+*.so
+*.dylib
+
+# Core dumps
+core
+core.*
+
+# Temporary directories
+tmp/
+temp/

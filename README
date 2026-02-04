@@ -26,8 +26,8 @@ make install
 COMMAND USAGE
 -------------
 Usage:
-        grepcidr [-V] [-cCDvhais] PATTERN [FILE ...]
-        grepcidr [-V] [-cCDvhais] [-e PATTERN | -f FILE] [FILE ...]
+        grepcidr [-V] [-cCDvhaiso] PATTERN [FILE ...]
+        grepcidr [-V] [-cCDvhaiso] [-e PATTERN | -f FILE] [FILE ...]
 
 -V	Show software version
 -a	Anchor matches to beginning of line, otherwise match anywhere
@@ -39,6 +39,10 @@ Usage:
 -f	Obtain CIDR and range pattern(s) from file
 -i	Ignore patterns that are not valid CIDRs or ranges
 -h	Do not print filenames when matching multiple files
+-o	Print matching CIDR pattern instead of input line. When an IP matches
+	multiple overlapping patterns, automatically selects the narrowest
+	(most specific) match. Useful for reverse lookups to identify which
+	network/service an IP belongs to.
 
 PATTERN specified on the command line may contain multiple patterns
 separated by whitespace or commas. For long lists of network patterns,
@@ -84,3 +88,26 @@ script | grepcidr -ivf whitelist > blocklist
 
 grepcidr -if list1 list2
 	Cross-reference two lists, outputs IPs common to both lists
+
+grepcidr -o -f networks.txt access.log
+	Print the matching network pattern for each IP in access.log
+	(reverse lookup: IP → CIDR pattern)
+
+echo "192.168.1.200" | grepcidr -o -f patterns.txt
+	Find which CIDR pattern contains the given IP address.
+	When multiple overlapping patterns match, returns the most specific one.
+
+lsof -i -nP | grep -oE '[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+' | grepcidr -o -f aws-cidrs.txt
+	Identify AWS services from network connections. If patterns file contains
+	tab-delimited entries like "52.94.0.0/16<TAB>EC2", the service name is
+	included in the output.
+
+
+TESTING
+-------
+A comprehensive test suite is available in the tests/ directory.
+
+To run all tests:
+	make test
+
+See tests/README.md for detailed information on running tests and test organization.
