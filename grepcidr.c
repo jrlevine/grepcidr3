@@ -21,7 +21,7 @@
 #define EXIT_NOMATCH	1
 #define EXIT_ERROR	2
 
-#define TXT_VERSION	"grepcidr 3.02\nParts copyright (C) 2004, 2005  Jem E. Berkes <jberkes@pc-tools.net>\n"
+#define TXT_VERSION	"grepcidr 3.03\nParts copyright (C) 2004, 2005  Jem E. Berkes <jberkes@pc-tools.net>\n"
 #define TXT_USAGE	"Usage:\n" \
 			"\tgrepcidr [-V] [-cCDvhais] PATTERN [FILE...]\n" \
 			"\tgrepcidr [-V] [-cCDvhais] [-o] [-e PATTERN | -f FILE] [FILE...]\n"
