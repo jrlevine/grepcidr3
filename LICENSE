@@ -25,4 +25,5 @@ OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 Portions of the files grepcidr.c and grepcidr.1 copyright (C) 2004, 2005  Jem E. Berkes <jberkes@pc-tools.net>
-and may be subject to a GNU public license
+and may be subject to a GNU public license described in the file COPYING.
+
