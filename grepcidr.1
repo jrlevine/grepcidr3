@@ -37,9 +37,9 @@ Print the matching pattern instead of the input line
 .IP "\fB-s\fP" 10 
 (Sloppy) Don't complain about misaligned CIDR ranges.
 .IP "\fB-C\fP" 10 
-Parse CIDR ranges in input and match if a search term covers the entire range.
+Parse CIDR ranges and IP ranges in input and match if a search term covers the entire range.
 .IP "\fB-D\fP" 10 
-Parse CIDR ranges in input and match if a search term covers any of the range.
+Parse CIDR ranges and IP ranges in input and match if a search term covers any of the range.
 .IP "\fB-q\fP" 10 
 (Quick) Ignore IPv4 addresses that are followed by a dot.
 .SH "USAGE NOTES" 
@@ -59,7 +59,13 @@ a.b.c.d           (Single IPv4 address)
 ab:cd::ef	  (Single IPv6 address)
 ab:cd::ef/xx	  (IPv6 CIDR range)
 ab::cd:a.b.c.d	  (IPv4 address embedded in IPv6)
-.fi 
+.fi
+.PP
+With \fB-C\fP or \fB-D\fP, the input is also scanned for IP ranges written
+as \fIa.b.c.d-e.f.g.h\fP (spaces or tabs around the dash are allowed).
+Such a range is matched like a CIDR in the input: with \fB-C\fP only if a
+search term covers the entire range, with \fB-D\fP if a search term
+overlaps any part of it.
 .PP
 Invalid patterns are ignored with the \fB-i\fP flag, which can be useful for
 using files of IPs or CIDRs as patterns that also contain other material.
@@ -112,6 +118,10 @@ Searches for any localnet IP addresses inside the iplog file
 \fI\fBgrepcidr\fR "2001:3def:1234::/48" iplog\fP 
 .PP 
 Searches for IPs matching indicated range in the iplog file 
+.PP 
+\fI\fBgrepcidr\fR \-D "10.0.0.50-10.0.0.60" rangelist\fP 
+.PP 
+Find input ranges (a.b.c.d-e.f.g.h) that overlap the indicated range
 .PP 
 \fI\fBscript\fR | \fBgrepcidr\fR \-vf whitelist > blocklist\fP 
 .PP 
