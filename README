@@ -32,8 +32,8 @@ Usage:
 -V	Show software version
 -a	Anchor matches to beginning of line, otherwise match anywhere
 -c	Display count of the lines that would have been shown, instead of showing them
--C	Parse CIDR ranges in input and only match if a search term encompasses the entire range.
--D	Parse CIDR ranges in input and match if a search term matches any part of the range.
+-C	Parse CIDR ranges and IP ranges in input and only match if a search term encompasses the entire range.
+-D	Parse CIDR ranges and IP ranges in input and match if a search term matches any part of the range.
 -v	Invert the sense of matching, to select non-matching IP addresses
 -e	Specify pattern(s) on command-line
 -f	Obtain CIDR and range pattern(s) from file
@@ -60,6 +60,12 @@ The zero address :: is accepted as a pattern but does not match in
 files.  (Use regular grep if that's what you're looking for.)  It does
 not accept IPv6 ranges, since few people use them.
 
+With -C or -D the input is also scanned for IPv4 ranges written as
+a.b.c.d-e.f.g.h (spaces or tabs around the dash are allowed); such a
+range is matched like a CIDR in the input: with -C only if a search
+term covers the entire range, with -D if a search term overlaps any
+part of it.  IPv6 ranges in the input are not supported.
+
 Grepcidr uses a state machine to look for IP addresses in the input,
 and a binary search to match addresses against patterns.  Its speed is
 roughly O(N) in the size of the input, and O(log N) in the number of
@@ -82,6 +88,9 @@ grepcidr 127.0.0.0/8,::1 iplog
 
 grepcidr "192.168.0.1-192.168.10.13" iplog
 	Searches for IPs matching indicated range in the iplog file
+
+grepcidr -D "10.0.0.50-10.0.0.60" rangelist
+	Find input ranges (a.b.c.d-e.f.g.h) that overlap the given range
 
 script | grepcidr -ivf whitelist > blocklist
 	Create a blocklist, with whitelisted networks removed (inverse)

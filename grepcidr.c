@@ -929,6 +929,54 @@ static void scan_read(FILE *f, const char *fn)
 static int netmatch(const struct netspec ip4, const char **original_line);
 static int netmatch6(const struct netspec6 ip6, const char **original_line);
 
+/*
+ * Try to parse an IP range in the input: the first IP was just parsed,
+ * at_ch is the character right after it, and p points just past at_ch.
+ * If a valid second IP follows (separated by a dash, with optional
+ * spaces or tabs around it, exactly four octets each), return 1 and set
+ * *end to the second IP and *np to the position just past its last digit.
+ */
+static int range_from(int at_ch, const char *p, const char *plim,
+                      unsigned int *end, const char **np)
+{
+	const char *q = p;
+	unsigned int ip = 0;
+	int n = 0;
+
+	if(at_ch != '-') {
+		if(at_ch != ' ' && at_ch != '\t')
+			return 0;	/* not a range separator */
+		while(q < plim && (*q == ' ' || *q == '\t'))
+			q++;
+		if(q >= plim || *q != '-')
+			return 0;
+		q++;
+	}
+	while(q < plim && (*q == ' ' || *q == '\t'))
+		q++;
+	for(;;) {
+		unsigned int o = 0;
+		int have = 0;
+
+		while(q < plim && isdigit((unsigned char)*q)) {
+			o = o*10 + *q-'0';
+			have = 1;
+			q++;
+		}
+		if(!have || o > 255)
+			return 0;	/* not a valid IP range */
+		ip = (ip<<8) | o;
+		if(++n == 4) {
+			*end = ip;
+			*np = q;
+			return 1;
+		}
+		if(q >= plim || *q != '.')
+			return 0;
+		q++;
+	}
+}
+
 /* scan some text, must be whole lines
  * generally either one line or the whole file
  * bp: pointer to buffer
@@ -1295,6 +1343,29 @@ static void scan_block(char *bp, size_t blen, const char *fn)
 					size = 0;
 					continue;
 				}
+				if(cidrsearch) {
+					unsigned int endip;
+					const char *np;
+
+					if(range_from(ch, p, plim, &endip, &np)) {
+						/* input has an IP range, match it as one range */
+						seenone = 1;
+						if(ip4 <= endip) {
+							range4.min = ip4;
+							range4.max = endip;
+						} else {
+							range4.min = endip;
+							range4.max = ip4;
+						}
+						if(netmatch(range4, &original_line)) {
+							state = output_matched_pattern ? S_SCNLPO : S_SCNLP;
+							goto scnlp;	/* in case it was a \n */
+						}
+						p = (char *)np;	/* consume the range, keep scanning */
+						state = snext;
+						continue;
+					}
+				}
 				seenone = 1;
 				range4.min = range4.max = ip4;
 				if(!netmatch(range4, &original_line))
@@ -1378,43 +1449,51 @@ static void scan_block(char *bp, size_t blen, const char *fn)
 				/* fall through, in case it was a \n */
 
 scnlp:
-				if(state == S_SCNLPO)
-					goto handle_scnlpo;
-
-			case S_SCNLP:	/* print this line */
-				/* HACK scan the rest of the line fast */
+			if(state == S_SCNLPO) {
+				/* HACK scan the rest of the line fast, then
+				 * print the matching pattern */
 				while(ch != '\n' && p < plim)
 					ch = *p++;
 
-				if(ch == '\n') {
-					if(!invert) {
-						nmatch++;
-						if(!counting) {
-							if(fn && !nonames)
-								printf("%s:", fn);
-							fwrite(lp, 1, p-lp, stdout);
-						}
-					}
-					state = S_BEG;
-				}
+				if(ch == '\n')
+					goto handle_scnlpo;
 				continue;
+			}
 
-			case S_SCNLPO:
-				if(ch == '\n') {
-handle_scnlpo:
+		case S_SCNLP:	/* print this line */
+			/* HACK scan the rest of the line fast */
+			while(ch != '\n' && p < plim)
+				ch = *p++;
+
+			if(ch == '\n') {
+				if(!invert) {
+					nmatch++;
 					if(!counting) {
-						fputs(original_line, stdout);
-						if(original_line[strlen(original_line)-1] != '\n')
-							putchar('\n');
+						if(fn && !nonames)
+							printf("%s:", fn);
+						fwrite(lp, 1, p-lp, stdout);
 					}
-					if(invert && !seenone) nmatch++;
-					else if(!invert) nmatch++;
-					state = S_BEG;
-					continue;
 				}
-				continue;
+				state = S_BEG;
+			}
+			continue;
 
-			case S_SCNL:
+		case S_SCNLPO:
+			if(ch == '\n') {
+handle_scnlpo:
+				if(!counting) {
+					fputs(original_line, stdout);
+					if(original_line[strlen(original_line)-1] != '\n')
+						putchar('\n');
+				}
+				if(invert && !seenone) nmatch++;
+				else if(!invert) nmatch++;
+				state = S_BEG;
+				continue;
+			}
+			continue;
+
+		case S_SCNL:
 				/* HACK scan the rest of the line fast */
 				while(ch != '\n' && p < plim)
 					ch = *p++;

@@ -20,6 +20,16 @@ Print matching CIDR pattern instead of input line.
 
 Run: `./tests/test_o_option.sh`
 
+### `-C`/`-D` Input Range Tests
+
+Match IP ranges in the input (`a.b.c.d-e.f.g.h`) with `-D` (any
+overlap) or `-C` (full cover) semantics.
+
+- **Script:** `test_d_option.sh`
+- **Tests:** 40 (all passing)
+
+Run: `./tests/test_d_option.sh`
+
 ## Adding New Tests
 
 When adding tests for a new option:
